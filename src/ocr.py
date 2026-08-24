@@ -1,4 +1,3 @@
-from pathlib import Path
 import cv2
 import pytesseract
 import re
@@ -19,13 +18,11 @@ pytesseract.pytesseract.tesseract_cmd = (
 
 def clean_text(text):
     """
-    Remove spaces and special characters
-    from OCR output.
+    Convert OCR output to uppercase
+    and keep only English letters and numbers.
     """
 
     text = text.upper()
-
-    # Keep only letters and numbers
     text = re.sub(r"[^A-Z0-9]", "", text)
 
     return text
@@ -37,11 +34,15 @@ def clean_text(text):
 
 def baseline_ocr(image):
     """
-    OCR directly on the cropped license plate.
+    OCR directly on the original license plate crop.
     No preprocessing.
     """
 
-    config = "--psm 7"
+    config = (
+        "--psm 7 "
+        "-c tessedit_char_whitelist="
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
 
     text = pytesseract.image_to_string(
         image,
@@ -57,24 +58,36 @@ def baseline_ocr(image):
 
 def improved_ocr(image):
     """
-    Apply image preprocessing before OCR.
+    Conservative image enhancement before OCR.
 
     Pipeline:
+
+        Original Crop
+             ↓
         Grayscale
-        ↓
+             ↓
         Upscaling
-        ↓
-        Gaussian Blur
-        ↓
-        Otsu Threshold
-        ↓
+             ↓
+        CLAHE
+             ↓
+        Mild Sharpening
+             ↓
         Tesseract OCR
     """
 
-    # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # -------------------------
+    # Grayscale
+    # -------------------------
 
-    # Upscale image
+    gray = cv2.cvtColor(
+        image,
+        cv2.COLOR_BGR2GRAY
+    )
+
+    # -------------------------
+    # Upscaling
+    # -------------------------
+
     gray = cv2.resize(
         gray,
         None,
@@ -83,25 +96,47 @@ def improved_ocr(image):
         interpolation=cv2.INTER_CUBIC
     )
 
-    # Reduce noise
-    blurred = cv2.GaussianBlur(
-        gray,
-        (3, 3),
+    # -------------------------
+    # Contrast Enhancement
+    # -------------------------
+
+    clahe = cv2.createCLAHE(
+        clipLimit=1.5,
+        tileGridSize=(8, 8)
+    )
+
+    enhanced = clahe.apply(gray)
+
+    # -------------------------
+    # Mild Sharpening
+    # -------------------------
+
+    gaussian = cv2.GaussianBlur(
+        enhanced,
+        (0, 0),
+        1
+    )
+
+    sharpened = cv2.addWeighted(
+        enhanced,
+        1.4,
+        gaussian,
+        -0.4,
         0
     )
 
-    # Binary threshold
-    threshold = cv2.threshold(
-        blurred,
-        0,
-        255,
-        cv2.THRESH_BINARY + cv2.THRESH_OTSU
-    )[1]
+    # -------------------------
+    # OCR
+    # -------------------------
 
-    config = "--psm 7"
+    config = (
+        "--psm 7 "
+        "-c tessedit_char_whitelist="
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
 
     text = pytesseract.image_to_string(
-        threshold,
+        sharpened,
         config=config
     )
 
@@ -109,7 +144,7 @@ def improved_ocr(image):
 
 
 # =========================
-# Test OCR
+# Test
 # =========================
 
 if __name__ == "__main__":
@@ -117,5 +152,6 @@ if __name__ == "__main__":
     print("OCR module loaded successfully.")
 
     print("\nAvailable functions:")
+
     print("- baseline_ocr()")
     print("- improved_ocr()")

@@ -1,0 +1,7 @@
+YOLOv8 License Plate Detection Results
+==================================================
+
+Precision: 95.26%
+Recall: 89.58%
+mAP@50: 88.82%
+mAP@50-95: 50.28%
