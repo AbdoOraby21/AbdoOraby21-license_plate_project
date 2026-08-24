@@ -1,3 +1,5 @@
+from ocr import baseline_ocr
+from plate_database import init_database, save_plate
 from pathlib import Path
 
 import cv2
@@ -60,6 +62,8 @@ print("\nLoading YOLO model...")
 model = YOLO(
     str(MODEL_PATH)
 )
+
+init_database()
 
 print("Model loaded successfully.")
 
@@ -223,6 +227,13 @@ def process_image(image_path):
 
         plate_text = "NOT RECOGNIZED"
 
+    if plate_text != "NOT RECOGNIZED":
+        save_plate(
+           plate_number=plate_text,
+            confidence=best_conf,
+            image_name=image_path.name
+        )
+    
     # -------------------------
     # Draw Bounding Box
     # -------------------------
