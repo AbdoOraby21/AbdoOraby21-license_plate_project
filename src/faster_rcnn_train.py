@@ -1,3 +1,4 @@
+import numpy as np
 from pathlib import Path
 
 import cv2
@@ -105,6 +106,36 @@ DEVICE = torch.device(
 
 
 # ============================================================
+# Helper: read image safely (supports non-ASCII / Arabic paths)
+# ============================================================
+
+def read_image_unicode(path):
+    """
+    Reads an image from a path that may contain non-ASCII
+    (e.g. Arabic) characters, which cv2.imread() fails on
+    under Windows. Returns None if the file cannot be read.
+    """
+
+    try:
+
+        data = np.fromfile(
+            str(path),
+            dtype=np.uint8
+        )
+
+        image = cv2.imdecode(
+            data,
+            cv2.IMREAD_COLOR
+        )
+
+        return image
+
+    except Exception:
+
+        return None
+
+
+# ============================================================
 # Dataset
 # ============================================================
 
@@ -146,11 +177,11 @@ class LicensePlateDataset(Dataset):
 
             try:
 
-                image = cv2.imread(
-                    str(image_path)
+                img = read_image_unicode(
+                    image_path
                 )
 
-                if image is None:
+                if img is None:
 
                     print(
                         "WARNING: "
@@ -202,8 +233,8 @@ class LicensePlateDataset(Dataset):
             self.images[index]
         )
 
-        image = cv2.imread(
-            str(image_path)
+        image = read_image_unicode(
+            image_path
         )
 
         if image is None:
@@ -572,6 +603,20 @@ def train():
         f"Validation images: "
         f"{len(val_dataset)}"
     )
+
+    # --------------------------------------------------------
+    # Safety check: fail early with a clear message instead
+    # of letting DataLoader crash with a cryptic error
+    # --------------------------------------------------------
+
+    if len(train_dataset) == 0:
+
+        raise RuntimeError(
+            "No valid training images were found.\n"
+            f"Checked folder: {TRAIN_IMAGES}\n"
+            "Make sure this folder exists and contains "
+            "readable .jpg/.png images."
+        )
 
     # --------------------------------------------------------
     # DataLoader
